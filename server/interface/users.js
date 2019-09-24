@@ -3,7 +3,7 @@ import Redis from 'koa-redis'
 import nodeMailer from 'nodemailer'
 import User from '../dbs/models/users'
 import Passport from './utils/passport'
-import Email from './dbs/config'
+import Email from '../dbs/config'
 import axios from './utils/axios'
 
 let router = new Router({
@@ -11,18 +11,20 @@ let router = new Router({
 })
 let Store = new Redis().client
 //注册接口
-router.post('./signup', async (ctx) => {
+router.post('/signup', async (ctx) => {
   const {
     username,
     password,
     email,
     code
   } = ctx.request.body;
+
   if (code) {
-    const saveCode = await Store.hget(`nodemail:${username}`, 'code');
+    const saveCode = await Store.hget(`nodemail:${username}`, 'code')
     const saveExpire = await Store.hget(`nodemail:${username}`, 'expire')
+    // 用户填写的验证码跟生成的验证码对比。若是相等。查看验证码有没有过期
     if (code === saveCode) {
-      if (new Data().getTime() - saveExpire > 0) {
+      if (new Date().getTime() - saveExpire > 0) {
         ctx.body = {
           code: -1,
           msg: '验证码已过期，请重新尝试'
@@ -57,7 +59,7 @@ router.post('./signup', async (ctx) => {
     email
   })
   if (nuser) {
-    let res = await axios.post('/user/signin', {
+    let res = await axios.post('/users/signin', {
       username,
       password
     })
@@ -107,10 +109,10 @@ router.post('/signin', async (ctx, next) => {
   })(ctx, next)
 })
 
-// 验证码验证
-router.post('/verify', async (ctx, next)=> {
+// 邮箱验证码验证
+router.post('/verify', async (ctx, next) => {
   let username = ctx.request.body.username
-  const saveExpire = await Store.hget(`nodemail:${username}`, 'expire')
+  const saveExpire = await Store.hget(`nodemail:${username}`, 'expire') //Redis Hget 命令用于返回哈希表中指定字段的值。
   if (saveExpire && new Date().getTime() - saveExpire < 0) {
     ctx.body = {
       code: -1,
@@ -120,7 +122,7 @@ router.post('/verify', async (ctx, next)=> {
   }
   let transporter = nodeMailer.createTransport({
     service: 'qq',
-    auto: {
+    auth: {
       user: Email.smtp.user,
       pass: Email.smtp.pass
     }
@@ -137,7 +139,7 @@ router.post('/verify', async (ctx, next)=> {
     subject: '《慕课网高仿美团网全栈实战》注册码',
     html: `您在《慕课网高仿美团网全栈实战》课程中注册，您的邀请码是${ko.code}`
   }
-  await transporter.sendMail(mailOption, (error, info) => {
+  await transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       return console.log(error)
     } else {
@@ -152,15 +154,33 @@ router.post('/verify', async (ctx, next)=> {
 
 // 退出接口
 router.get('/exit', async (ctx, next) => {
-    await ctx.logout()
-    if (!ctx.isAuthenticated()) {
-      ctx.body = {
-        code: 0
-      }
-    } else {
-      ctx.body = {
-        code: -1
-      }
+  await ctx.logout()
+  if (!ctx.isAuthenticated()) { //二次验证
+    ctx.body = {
+      code: 0
     }
-  })
-  export default router
+  } else {
+    ctx.body = {
+      code: -1
+    }
+  }
+})
+// 获取用户名
+router.get('/getUser', async (ctx) => {
+  if (ctx.isAuthenticated()) {
+    const {
+      username,
+      email
+    } = ctx.session.passport.user
+    ctx.body = {
+      user: username,
+      email
+    }
+  } else {
+    ctx.body = {
+      user: '',
+      email: ''
+    }
+  }
+})
+export default router

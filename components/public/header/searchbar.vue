@@ -21,17 +21,22 @@
           </button>
           <dl class="hotPlace" v-if="isHotPlace">
             <dt>热门搜索</dt>
-            <dd v-for="(item, idx) in hotPlace" :key="idx">{{ item }}</dd>
+            <dd v-for="(item, idx) in $store.state.home.hotPlace.slice(0,5)" :key="idx">
+              <a :href="'/products?keyword='+encodeURIComponent(item.name)">{{ item.name }}</a>
+            </dd>
           </dl>
           <dl class="searchList" v-if="isSearchList">
-            <dd v-for="(item, idx) in searchList" :key="idx">{{ item }}</dd>
+            <dd v-for="(item, idx) in searchList" :key="idx">
+              <a :href="'/products?keyword='+encodeURIComponent(item.name)">{{ item.name }}</a>
+            </dd>
           </dl>
         </div>
         <p class="suggest">
-          <a href="#">故宫博物馆</a>
-          <a href="#">故宫博物馆</a>
-          <a href="#">故宫博物馆</a>
-          <a href="#">故宫博物馆</a>
+          <a
+            v-for="(item,idx) in $store.state.home.hotPlace.slice(0,5)"
+            :key="idx"
+            :href="'/products?keyword='+encodeURIComponent(item.name)"
+            >{{ item.name }}</a>
         </p>
         <ul class="nav">
           <li><nuxt-link to="/" class="takeout">美团外卖</nuxt-link></li>
@@ -62,6 +67,7 @@
 </template>
 
 <script>
+import _ from "lodash";
 export default {
   data() {
     return {
@@ -73,10 +79,10 @@ export default {
   },
   computed: {
     isHotPlace: function() {
-      return this.isFocus && !this.search;//聚焦但是没有输入内容
+      return this.isFocus && !this.search; //聚焦但是没有输入内容
     },
     isSearchList: function() {
-      return this.isFocus && this.search;//聚焦并且有输入内容
+      return this.isFocus && this.search; //聚焦并且有输入内容
     }
   },
   methods: {
@@ -89,9 +95,21 @@ export default {
         self.isFocus = false;
       }, 200);
     },
-    input: function() {
-      console.log("input");
-    }
+    input: _.debounce(async function() {
+      let self = this;
+      let city = self.$store.state.geo.position.city.replace("市", "");
+      self.searchList = [];
+      let {
+        status,
+        data: { top }
+      } = await self.$axios.get("/search/top", {
+        params: {
+          input: self.search,
+          city
+        }
+      });
+      self.searchList = top.slice(0, 10);
+    }, 300)
   }
 };
 </script>

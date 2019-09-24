@@ -2,12 +2,39 @@
 import Koa from 'koa'
 const consola = require('consola')
 const { Nuxt, Builder } = require('nuxt')
+import mongoose from 'mongoose'
+import bodyParser from 'koa-bodyparser'//处理跟post相关的数据
+import session from 'koa-generic-session'
+import Redis from 'koa-redis'
+import json from 'koa-json'
+import dbConfig from './dbs/config.js'
+import passport from './interface/utils/passport'
+import users from './interface/users'
+import geo from './interface/geo'
+import search from './interface/search'
+import categroy from './interface/categroy'
+import cart from './interface/cart'
+import order from './interface/order'
 
 const app = new Koa()
 
 // Import and Set Nuxt.js options
 const config = require('../nuxt.config.js')
 config.dev = app.env !== 'production'
+
+app.keys = ['mt','keyskeys']
+app.proxy = true
+app.use(session({key:'mt',prefix:'mt:uid',store:new Redis()}))
+app.use(bodyParser({
+  extendTypes:['json','form','text']
+}))
+app.use(json())
+
+mongoose.connect(dbConfig.dbs,{
+  useNewUrlParser:true
+})
+app.use(passport.initialize())
+app.use(passport.session())
 
 async function start () {
   // Instantiate nuxt.js
@@ -26,6 +53,13 @@ async function start () {
     await nuxt.ready()
   }
 
+  app.use(users.routes()).use(users.allowedMethods())//需要放在ctx之前
+  app.use(geo.routes()).use(geo.allowedMethods())
+  app.use(search.routes()).use(search.allowedMethods())
+  app.use(categroy.routes()).use(categroy.allowedMethods())
+  app.use(cart.routes()).use(cart.allowedMethods())
+  app.use(order.routes()).use(order.allowedMethods())
+  
   app.use((ctx) => {
     ctx.status = 200
     ctx.respond = false // Bypass Koa's built-in response handling
